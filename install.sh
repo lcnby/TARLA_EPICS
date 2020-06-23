@@ -23,8 +23,8 @@ echo
 echo "______________________________________"
 echo "| Please choose your GNU/Linux Distro |"
 echo "|_____________________________________|"
-echo "| 1: Ubuntu                           |"
-echo "| 2: Centos/Fedora                    |"
+echo "| 1: Centos/Fedora                    |"
+echo "| 2: Ubuntu                           |"
 echo "|_____________________________________|"
 echo
 read distro
