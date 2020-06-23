@@ -1,0 +1,100 @@
+Default installation directory is /home/${USER} in install.sh
+
+###################################################
+For IOCs:
+/opt
+    /epicsv3
+	-> /base: base-3.15.5
+	-> support
+	    -> /asyn: asyn4-32
+	    -> /autosave: autosave-R5-7-1
+	    -> /busy: busy_R1-6-1
+	    -> /calc: calc-R3-6-1
+	    -> /caPutLog: caPutLog-3.6
+	    -> /iocLogClient
+	    -> /iocStats
+	    -> /ipac: ipac-2.14
+	    -> /modbus: modbus-R2-10-1
+	    -> /motor: motorR6-9
+	    -> /s7plc
+	    -> /seq: seq-2.2.5
+	    -> /sscan: sscan_R2-10
+	    -> /streamdevice: stream-2-7
+
+MAIN DIRECTORIES:
+EPICS_ROOT=${installation_dir}/epicsv3
+EPICS_BASE=${EPICS_ROOT}/base
+SUPPORT=${EPICS_ROOT}/support
+
+SUPPORT MODULES:
+SNCSEQ=${SUPPORT}/seq
+IPAC=${SUPPORT}/ipac
+ASYN=${SUPPORT}/asyn
+AUTOSAVE=${SUPPORT}/autosave
+BUSY=${SUPPORT}/busy
+SSCAN=${SUPPORT}/sscan
+CALC=${SUPPORT}/calc
+DEVIOCSTATS=${SUPPORT}/iocStats
+CAPUTLOG=${SUPPORT}/caPutLog
+IOCLOGCLIENT=${SUPPORT}/iocLogClient
+MODBUS=${SUPPORT}/modbus
+MOTOR=${SUPPORT}/motor
+S7PLC=${SUPPORT}/s7plc
+STREAM==${SUPPORT}/streamDevice
+___________________________________________________
+For areaDetector:
+/opt
+    /epicsv3
+	-> /base: base-3.15.5
+	-> /support
+	    -> /asyn: asyn4-32
+	    -> /autosave: autosave-R5-7-1
+	    -> /busy: busy_R1-6-1
+	    -> /calc: calc-R3-6-1
+	    -> /iocStats
+	    -> /ipac: ipac-2.14
+	    -> /seq: seq-2.2.5
+	    -> /sscan: sscan_R2-10
+	    -> /areaDetector: areaDetector-R3-3-1
+		-> /ADCore: ADCore-R3-3-1
+		-> /ADSupport: ADSupport-R1-4
+		-> /aravisGigE: aravisGigE-R3-0
+
+MAIN DIRECTORIES:
+EPICS_ROOT=${installation_dir}/epicsv3
+EPICS_BASE=${EPICS_ROOT}/base
+SUPPORT=${EPICS_ROOT}/support
+
+SUPPORT MODULES:
+SUPPORT=${EPICS_ROOT}/support
+SNCSEQ=${SUPPORT}/seq
+IPAC=${SUPPORT}/ipac
+ASYN=${SUPPORT}/asyn
+AUTOSAVE=${SUPPORT}/autosave
+BUSY=${SUPPORT}/busy
+SSCAN=${SUPPORT}/sscan
+CALC=${SUPPORT}/calc
+DEVIOCSTATS=${SUPPORT}/iocStats
+AREADETECTOR=${SUPPORT}/areaDetector
+
+AREADETECTOR MODULES
+ADSUPPORT=${AREADETECTOR}/ADSupport
+ADCORE=${AREADETECTOR}/ADCore
+ARAVISGIGE=${SUPPORT}/aravisgigE
+ADVİEWERS=${SUPPORT}/ADViewers
+###################################################
+
+###################################################
+	include <tsDefs.h> /* epicsTimeStamp */
+part is changed to
+	include <epicsTime.h> /* epicsTimeStamp */
+in
+	iocLogClient/src/alarmLog.c
+	iocLogClient/src/sysMsgLog.c
+	iocLogClient/src/caPutLog.c
+	iocLogClient/src/snlMsgLog.c
+	iocLogClient/src/iocLogClient.c
+files.
+
+
+

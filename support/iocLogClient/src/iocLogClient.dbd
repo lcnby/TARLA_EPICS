@@ -1,0 +1,4 @@
+registrar(iocLogClientInitRegister)
+variable(alarmLogDisable,int)
+variable(sysMsgLogDisable,int)
+variable(caPutLogDisable,int)

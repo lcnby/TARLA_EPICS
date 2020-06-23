@@ -1,0 +1,262 @@
+What is iocLogClient?
+
+iocLogClient is a software to log different kinds of messages from IOC to Java message system(JMS). At present, 4 kinds of messages (alarm, system, caPutlog and snl) are sent to an interconnection server (ICS) , then to JMS, and the forward processes such as CSS displays are based on JMS. Fig.1 shows the messages flow.
+
+                         ------------
+                         |   IOC    |
+                         ------------
+                             ^|  messages: alarm, system, caPutlog and snl
+			     |v
+                         ------------
+                         |   ICS    |
+                         ------------
+                             |  event messages
+			     v
+                         ------------
+                         |   JMS    |
+                         ------------
+                             |  event messages
+			     v
+               ------------------------------
+               |           filter           |             
+               ------------------------------
+               |          JMS  queue        |
+               ------------------------------
+		 |           |            |
+		 v           v            v
+           -----------  -----------  ------------
+           | actions |  |   db    |  |   CSS    |
+           |   SMS   |  | archive |  | displays |
+           -----------  -----------  ------------
+
+	Fig.1 messages flow from IOC to JMS and the forward processes
+
+Up to 6 interconnection server can be configured via the environment variable EPICS_IOC_LOG_INET_LIST,Beacons are sent to the configured servers and one server is selected at random. After that messages are sent to the selected server on the message port which can be configured via the environment variable EPICS_IOC_LOG_MSG_PORT.
+Anyone of configured interconnection server can send commands to IOC on the command port which can be configured via the environment variable EPICS_IOC_LOG_CMD_PORT. The command "takeOver" will switch the active server to that one the command has sent. When the environment variable EPICS_IOC_LOG_CMD_ACCEPT_ALL is set, the commands "sendAllAlarms" and "sendAlarm" are accepted from all configured servers.
+UDP is used for network communication.
+Fig.2 shows the communication between IOC and configured interconnection servers.
+The implementation is in the file "iocLogClient.c".
+
+    ---------------------------------------------------------------------
+    | IOC                                                               |
+    |                                                                   |
+    |    -----------      --------------------------------  ----------  |
+    |    | Control |      |      Message tasks           |  | Beacon |  |
+    |    |  task   |      | alarm, system, caPutLog, snl |  |  task  |  |
+    |    -----------      --------------------------------  ----------  |
+    |        ^|                          ^|                     ^|      |
+    |        |v		                 |v                     |v      |
+    |    ------------       -----------------------------------------   |
+    |    | cmd port |       |                 msg port              |   |
+    |    ------------       -----------------------------------------   |
+    ---------------------------------------------------------------------
+                                    ^|  UDP
+                                    |v
+                  ------------------------------------------
+                  |   configured interconnection servers   |                     
+                  ------------------------------------------
+
+  Fig.2 communication between IOC and configured interconnection servers
+
+Fig.3 shows the mechanism of alarm message log. logEvent is set as recGblAlarmHook and places the alarm message into the alarm ring buffer. When a message is in the ring buffer, alarmMessageTask sends it to the alarm server over network.
+The implementation is in the file "alarmLog.c".
+
+    --------------------------------------
+    | EPICS base                         |
+    |    ------------------------------  |
+    |    | recGblAlarmHook = logEvent |  |
+    |    ------------------------------  |
+    -----------------------|--------------          
+                           |
+                           v
+                    ---------------
+                    | ring buffer |
+                    ---------------
+                           |
+                           v
+                  --------------------
+                  | alarmMessageTask |
+                  --------------------
+                           |
+                           v
+                     ------------
+                     | msg port |
+                     ------------
+                           |
+                           v
+                --------------------------
+                | interconnection server |
+                --------------------------
+    
+          Fig.3 mechanism of alarm message log
+
+Fig.4 shows the mechanism of system message log. sysMsgSend2Q() is registered as errlogListener to receive errlog messages and format it, then send the formatted messages to the sysMsg queue. When a message is in the sysMsg queue, it is read out and sent to the server over network. 
+NOTE: errlog message (from base) is also called system message here.
+The implementation is in the file "sysMsgLog.c".
+
+    ----------------------------------------
+    | EPICS base                           |
+    |    --------------------------------  |
+    |    | errlogListener: sysMsgSend2Q |  |
+    |    --------------------------------  |
+    -----------------------|----------------          
+                           |
+                           v
+                    ----------------
+                    | sysMsg queue |
+                    ----------------
+                           |
+                           v
+                   -----------------
+                   | sysMsgLogTask |
+                   -----------------
+                           |
+                           v
+                     -------------
+                     |  msg port |
+                     -------------
+                           |
+                           v
+                --------------------------
+                | interconnection server |
+                --------------------------
+    
+          Fig.4 mechanism of system message log
+
+Fig.5 shows the mechanism of CA put log. caPutLog2Array() is registered as asTrapWriteListener to trap caPut message and write it to the caPutLog message array. caPutLog2Q() is invoked by the timer and it just sends the the element index of caPutLog message array to caPutLog message queue. When an index info is in caPutLog message queue, the related element of caPutLog message array is read out and cleaned. The readout message is formatted and sent to the server over network.
+
+NOTE: Make sure access security is enabled on the IOC by providing a suitable configuration file and load it with a call to asSetFilename(<filename>) before iocInit. Your configuration file should contain a TRAPWRITE rule.
+The following snippet can be used to enable read/write access and write trapping for everyone (i.e. unrestricted access):
+     ASG(DEFAULT) {
+       RULE(1,READ)
+       RULE(1,WRITE,TRAPWRITE)
+     }
+The implementation is in the file "caPutLog.c".
+
+    -----------------------------------------------
+    | EPICS base                                  |
+    |    ---------------------------------------  |
+    |    | asTrapWriteListener: caPutLog2Array |  |
+    |    ---------------------------------------  |
+    -----------------------|-----------------------          
+                           |
+                           v
+              ----------------------------
+              |  caPutLog message array  |
+              ----------------------------
+              | timer: invoke caPutLog2Q |
+              ----------------------------
+                           |
+                           v
+               --------------------------
+               | caPutLog message queue |
+	       --------------------------
+                           |
+                           v
+                    ----------------
+                    | caPutLogTask |
+                    ----------------
+                           |
+                           v
+                     -------------
+                     |  msg port |
+                     -------------
+                           |
+                           v
+                --------------------------
+                | interconnection server |
+                --------------------------
+    
+               Fig.5 mechanism of CA put log
+
+Fig.6 shows the mechanism of snl message log. snlMsgLog() is called in snl program. It formats the meassage and send the formatted messages to the snlMsg queue. When a message is in the snlMsg queue, it is read out and sent to the server over network. 
+The implementation is in the file "snlMsgLog.c".
+
+        --------------------------------------
+        | snlMsgLog(), called in snl program |
+        -------------------|------------------          
+                           |
+                           v
+                    ----------------
+                    | snlMsg queue |
+                    ----------------
+                           |
+                           v
+                   -----------------
+                   | snlMsgLogTask |
+                   -----------------
+                           |
+                           v
+                     -------------
+                     |  msg port |
+                     -------------
+                           |
+                           v
+               --------------------------
+               | interconnection server |
+               --------------------------
+    
+          Fig.6 mechanism of snl message log
+
+
+EPICS release requirenemt:
+
+EPICS base 3.14.10 or higher.
+
+
+Installing and building iocLogClient.
+
+After obtaining a copy of the distribution, it must be installed and built for use at your site. These steps only need to be performed once for the site (unless versions of the module running under different releases of EPICS and/or the other required modules are needed).
+   1. Create an installation directory for the module; usually this will be of the form /path/to/module/iocLogClient.
+   2. Unpack the distribution tar/zip file in this directory; this will produce a <supporttop> sub-directory. 
+   3. Edit the file configure/RELEASE and set the path to your installation of EPICS.
+   4. Run gnumake in the top-level directory and check for any compilation errors.
+
+
+Building IOC applications for EPICS R3.14.10 or higher
+   1. Edit configure/RELEASE and set IOCLOGCLIENT to the directory where you installed iocLogClient:
+           IOCLOGCLIENT = /path/to/iocLogClient
+   2. Edit your application Makefile:
+          * Add 'iocLogClient.dbd'to your appname.dbd:
+            appname_DBD += iocLogClient.dbd
+          * Add 'iocLogClient' to the list of libraries which will be linked with your application:
+            appname_LIBS += iocLogClient
+
+
+Edit IOC startup scripts.
+
+The following environment variables must/may be set in IOC startup scripts:
+   (1) EPICS_IOC_LOG_INET_LIST: internet address list of interconnection servers. At least one interconnection server is provided, the maxium number of interconnection servers is 6.
+   (2) EPICS_IOC_LOG_MSG_PORT: for message socket port, the default is 18324.
+   (3) EPICS_IOC_LOG_CMD_PORT: for command socket port, the default is 18325.
+   (4) EPICS_IOC_LOG_CMD_ACCEPT_ALL: if this variable is set, the commands "sendAllAlarms" and "sendAlarm" are accepted from all configured servers.
+
+iocLogClinetInit should be issued after iocInit. 
+ 
+
+Tuning on IOC shell/vxWorks shell.
+
+The following is the routines which can be used to tune iocLogClient:
+   (1)  iocLogClientInit: initialize iocLogClient, it is issued after iocInit in IOC startup scripts nomally. alarmLogInit, sysMsgLogInit and caPutLogInit are called from it.
+   (2)  iocLogClientShutdown: stop all running threads and free all allocated recources. alarmLogShutdown, sysMsgLogShutdown and caPutLogShutdown are called from it.
+   (3)  iocLogClientReport(level): report the status of iocLogclient, level can be 0-4. alarmLogReport, sysMsgLogReport and caPutLogReport are called from it.
+   (4)  alarmLogInit: initialize alarmLog.
+   (5)  alarmLogShutdown: stop the running threads and free the allocated recources related to alarmLog.
+   (6)  alarmLogReport(level): report the status of alarmLog, level can be 0-4.
+   (7)  sysMsgLogInit: initialize sysMsgLog.
+   (8)  sysMsgLogShutdown: stop the running threads and free the allocated recources related to sysMsgLog.
+   (9)  sysMsgLogReport(level): report the status of sysMsgLog, level can be 0-4.
+   (10) caPutLogInit: initialize caPutLog.
+   (11) caPutLogShutdown: stop the running threads and free the allocated recources related to caPutLog.
+   (12) caPutLogReport(level): report the status of caPutLog, level can be 0-4.
+   (13) snlMsgLogInit: initialize snlMsgLog.
+   (14) snlMsgLogShutdown: stop the running threads and free the allocated recources related to snlMsgLog.
+   (15) snlMsgLogReport(level): report the status of snlMsgLog, level can be 0-4.
+
+The following is global variables which can be used to tune iocLogClient:
+   (1)  alarmLogDisable: 0/1 -> enable/disable alarmLog. The default is 0.
+   (2)  sysMsgLogDisable: 0/1 -> enable/disable sysMsgLog. The default is 0.
+   (3)  caPutLogDisable: 0/1 -> enable/disable caPutLog. The default is 0.
+   (4)  snlMsgLogDisable: 0/1 -> enable/disable snlMsgLog. The default is 0.
+
+
